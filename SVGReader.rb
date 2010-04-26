@@ -6,7 +6,7 @@ module LD17
     module_function
     def import_vertices(file,path_id)
       doc = REXML::Document.new(File.read(file))
-      path = doc.get_elements("//path##{path_id}").first
+      path = doc.get_elements("//path[@id='#{path_id}']").first
       str = path.attribute(:d).to_s
       points = interpret_path_string(str)
       translate_str = path.parent.attribute("transform").to_s.match(/translate\((.*)\)/).captures.first

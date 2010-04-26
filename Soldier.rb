@@ -6,9 +6,17 @@ module LD17
     include CP::Object
     include DrawableShape
     
+    def self.images
+      @images ||= [
+        Gosu::Image.new(MainWindow.instance,"media/soldier1.png",false),
+        Gosu::Image.new(MainWindow.instance,"media/soldier2.png",false)
+      ]
+    end
     attr_writer :target_structure
     def initialize(game,p)
       @game = game
+      @images = Soldier.images
+      
       w, h = 2, 6
       @vertices = [
         vec2(-w/2,-h/2),
@@ -47,9 +55,16 @@ module LD17
     end
     
     def draw
+      draw_image
       draw_shape
       #draw_control_body
       draw_target_point
+    end
+    
+    def draw_image
+      image = @step ? @images[1] : @images[0]
+      x,y = @body.p.x, @body.p.y
+      image.draw_rot(x,y,ZOrder::Soldier,0)
     end
     
     def draw_target_point
@@ -60,18 +75,10 @@ module LD17
       end
     end
     
-    def draw_control_body
-      if @control_body
-        v = @control_body.p
-        x,y = v.x, v.y
-        c = 0xFF00FF00
-        MainWindow.draw_quad(x-1,y-1,c,x+1,y-1,c,x-1,y+1,c,x+1,y+1,c,100)
-      end
-    end
-    
     def on_ground(arbiter)
       @normal = arbiter.normal
       unless @hit
+        @game.score += 100
         @hit = true
         @body.struct.velocity_func = @original_func
         @body.instance_variable_set(:@body_velocity_lambda,nil)
@@ -79,24 +86,29 @@ module LD17
         @body.reset_forces
         @body.v = CP::ZERO_VEC_2
         @game.pick_target_for_soldier(self)
+        @step_timer = Time.now
       end
     end
     
     def reached_structure(structure)
+      return if drowned?
       if structure == @target_structure
+        @game.score += 1 unless @target_structure == @last_structure
         @body.v.x = 0
         @game.pick_target_for_soldier(self)
       end
     end
     
     def update_target
-      return unless @hit
+      drown if @body.p.y > @game.water_level
+      return unless @hit or @drowned
+      take_step
       if rand(30) == 0
         @game.pick_target_for_soldier(self)
       elsif @target_structure
         @target_point = @target_structure.body.p
       end
-      if @normal.length > 0
+      if @normal && @normal.length > 0
         @shape.surface_v = @normal.perp * 400 * target_direction
         if @body.p.near?(@target_point,3.0)
           @body.v.x = [[-2,@body.v.x].max,2].min
@@ -109,7 +121,26 @@ module LD17
       end
     end
     
+    def drown
+      @game.score -= 1000 unless @drowned
+      @drowned = true
+    end
+    
+    def drowned?
+      @drowned
+    end
+    
+    def take_step
+      @step_timer ||= Time.now
+      if Time.now - @step_timer > 0.25
+        @step = !@step
+        @step_timer = Time.now
+      end
+    end
+    
+    
     def target(structure)
+      @last_structure = @target_structure
       @target_structure = structure
       move_towards(structure.body.p)
     end

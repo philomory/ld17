@@ -2,9 +2,15 @@ module LD17
   class Airplane
     include CP::Object
     
-    def initialize(game,target_x,y,side)
+    def self.image
+      @image ||= Gosu::Image.new(MainWindow.instance,"media/airplane.png",false)
+    end
+    
+    def initialize(game,target_x,y,side,payload)
       @game = game
-      @side = side
+      @side,@payload = side, payload
+      @image = Airplane.image
+      
       @body = CP::Body.new(10,CP::INFINITY)
       x = (side == :left) ? -10 : 650
       v = vec2(((side == :left) ? 50 : -50),0)
@@ -39,13 +45,13 @@ module LD17
     end
     
     def drop_payload
-      @game.drop_payload(@body.p)
+      @game.drop_payload(@body.p,@payload)
     end
     
     def draw
       x,y = @body.p.x, @body.p.y
-      c = 0xFF000000
-      MainWindow.draw_quad(x-3,y-3,c,x+3,y-3,c,x-3,y+3,c,x+3,y+3,c,10000)
+      factor_x = (@side == :left) ? -1 : 1
+      @image.draw_rot(x,y,ZOrder::Airplane,0,0.5,0.5,factor_x)
     end
     
     def clean_up
@@ -58,6 +64,12 @@ module LD17
       end
       game.add_collision_func(:airplane,:sensor2,:post) do |airplane,sensor|
         game.destroy(airplane.instance_variable_get(:@obj))
+      end
+      game.add_collision_func(:airplane,:soldier,:begin) do |arb|
+        false
+      end
+      game.add_collision_func(:airplane,:structure,:begin) do |arb|
+        false
       end
     end
     

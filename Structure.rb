@@ -6,15 +6,21 @@ module LD17
     include CP::Object
     include DrawableShape
     
+    def self.image
+      Gosu::Image.new(MainWindow.instance,"media/structure.png",false)
+    end
+    
     attr_reader :body
     def initialize(p,mass,w,h)
+      @image = Structure.image
+      
       @vertices = [
         vec2(-w/2,-h/2),
         vec2( w/2,-h/2),
         vec2( w/2, h/2),
         vec2(-w/2, h/2)
       ]
-      mass = w*h/2
+      mass = w*h/6
       moment = CP.moment_for_poly(mass,@vertices,CP::ZERO_VEC_2)
       @body = CP::Body.new(mass,moment)
       @body.p = p
@@ -32,6 +38,9 @@ module LD17
     end
     
     def draw
+      x,y = @body.p.x, @body.p.y
+      angle = (@body.angle-Math::PI/2).radians_to_gosu
+      @image.draw_rot(x,y,ZOrder::Structure,angle)
       draw_shape
     end
     

@@ -2,7 +2,9 @@ require 'gosu'
 
 #require 'Constants'
 #require 'Screen'
+require 'Intro'
 require 'Game'
+require 'TitleScreen'
 
 require 'FPSCounter'
 
@@ -31,12 +33,23 @@ module LD17
       self.class.instance_variable_set(:@__instance__,self)
        
       super(640,480,false,16.666666666*4)
-      self.caption = "LD17 Game"
-      self.new_game
+      self.caption = "Capsize - feat. Rep. Johnson and DJ Admiral"
+      self.title
       @fps = FPSCounter.new
       @steps = 1
       setup_layers
-      @intro_audio = Gosu::Sample.new(self,"intro.ogg")
+    end
+    
+    def intro
+      @current_screen = Intro.new
+    end
+    
+    def restart
+      title
+    end
+    
+    def title
+      @current_screen = TitleScreen.new
     end
     
     def update
@@ -75,7 +88,7 @@ module LD17
       # into the picture.
       @current_screen.draw # rescue nil
       #ImageManager.image('pointer').draw(self.mouse_x-6,self.mouse_y,ZOrder::Pointer)
-      self.caption = "LD17 Game: #{@fps.fps} frames per second."
+      self.caption = "Capsize - feat. Rep. Johnson and DJ Admiral: #{@fps.fps} frames per second."
     end
     
     def button_down(id)

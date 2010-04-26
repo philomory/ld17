@@ -11,9 +11,12 @@ module LD17
     WEIGHT_MASS = 0
     MOMENT = CP.moment_for_poly(MASS,VERTICES,CP::ZERO_VEC_2)/25
     
-    attr_reader :body
+    attr_reader :body, :shape
     def initialize(game)
       @game = game
+      @image = Gosu::Image.new(MainWindow.instance,"media/island.png",false)
+      
+      
       @body = CP::Body.new(MASS,MOMENT)
       @body.p = vec2(320,240)
       @body.v = vec2(0,0)
@@ -22,19 +25,14 @@ module LD17
       @shape.e = 0; @shape.u = 0.7
       @shape.collision_type = :island
       @capsized_vertices = []
-      #weight1 = CP::Body.new(WEIGHT_MASS,100)
-      #weight2 = CP::Body.new(WEIGHT_MASS,100)
-      #weight1.p = @body.local2world(vec2(-200,0))
-      #weight2.p = @body.local2world(vec2( 200,0))
-      #joint1 = CP::Constraint::PivotJoint.new(@body,weight1,weight1.p)
-      #joint2 = CP::Constraint::PivotJoint.new(@body,weight2,weight2.p)
+
       
       @s_body = CP::StaticBody.new
       @groove = CP::Constraint::GrooveJoint.new(@s_body,@body,vec2(320,0),vec2(320,10000),vec2(0,0))
       
       buoyancy_points; buoy_force; sink_force
       @body.velocity_func = apply_buoyancy
-      init_chipmunk_object(@body,@shape,@s_body,@groove) #,weight1,weight2,joint1,joint2)
+      init_chipmunk_object(@body,@shape,@s_body,@groove)
     end
     
     def drop_range
@@ -143,6 +141,13 @@ module LD17
     end
     
     def draw
+      #x,y = @shape.bb.l, @shape.bb.t
+      #x,y = @body.p.x, @body.p.y
+      #x = (@shape.bb.r + @shape.bb.l)/2
+      #y = (@shape.bb.t + @shape.bb.b)/2
+      x, y = @body.p.x + 3, @body.p.y - 10
+      angle = (@body.angle-Math::PI/2).radians_to_gosu
+      @image.draw_rot(x,y,ZOrder::Island,angle)
       draw_shape
     end
   end

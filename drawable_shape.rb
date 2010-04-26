@@ -1,6 +1,7 @@
 module LD17
   module DrawableShape
     def draw_shape
+      return
       case @shape
       when CP::Shape::Poly then draw_poly
       when CP::Shape::Cirlce then draw_circle

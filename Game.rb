@@ -7,12 +7,23 @@ require 'Airplane'
 
 module ZOrder
   Water = 20
+  Island = 15
+  Airplane = 30
+  Structure = 35
+  Soldier = 40
+  Pointer = 100
+  Score = 200
 end
 
 module LD17
   class Game
     attr_reader :water_level
+    attr_accessor :score
     def initialize
+      
+      @capsize_warning = Gosu::Sample.new(MainWindow.instance,"media/capsize.ogg")
+      @tipover_warning = Gosu::Sample.new(MainWindow.instance,"media/it_will_tip_over.ogg")
+      
       @space = CP::Space.new
       @space.iterations = 5
       $gravity = @space.gravity = vec2(0,100)
@@ -22,6 +33,10 @@ module LD17
       @water_level = 240
       @island = Island.new(self)
       add_object(@island)
+      
+      @score = 0
+      @font = Gosu::Font.new(MainWindow.instance,Gosu.default_font_name,10)
+      
       
       @soldiers = []
       Soldier.collision_funcs(self)
@@ -34,6 +49,13 @@ module LD17
       
       @background_image
       @water_image
+      @mouse_pointer = Gosu::Image.new(MainWindow.instance,"media/pointer.png",false)
+            
+      @num_drops = 0
+      @chances = 5
+      @rate = @start_rate = 6
+      @min_rate = 0.5
+      @drop_timer = Time.now - @rate
     end
     
     def add_object(cp_obj)
@@ -51,22 +73,33 @@ module LD17
     def button_down(id)
       case id
       when Gosu::KbEscape then MainWindow.close
-      #when Gosu::KbSpace  then self.update(1,MainWindow.dt)
       when Gosu::MsLeft
-        drop_structure 
-      when Gosu::KbA
-        create_plane
+        drop_structure
+      when Gosu::MsRight
+        drop_soldier 
       end
     end
     
-    def drop_structure
-      p = vec2(MainWindow.mouse_x,MainWindow.mouse_y)
-      add_structure(p)
+    def mouse_x
+      MainWindow.mouse_x
     end
     
-    def create_plane
+    def mouse_y
+      [MainWindow.mouse_y,140].min 
+    end
+    
+    def drop_structure
+      create_plane(:structure,mouse_x,mouse_y)
+    end
+    
+    def drop_soldier
+      create_plane(:soldier,mouse_x,mouse_y)
+    end
+    
+    def create_plane(payload=nil,x = target_x,y=rand(150))
+      payload ||= (rand(2)==1 ? :structure : :soldier)
       side = rand(2) == 1 ? :left : :right
-      a = Airplane.new(self,target_x,rand(150),side)
+      a = Airplane.new(self,x,y,side,payload)
       @airplanes << a
       add_object(a)
       a
@@ -78,12 +111,12 @@ module LD17
       target_x = f + rand(l-f)
     end
     
-    def drop_payload(p)
-      rand(2) == 1 ? add_structure(p) : add_soldier(p)
+    def drop_payload(p,payload)
+      payload == :structure ? add_structure(p) : add_soldier(p)
     end
     
     def add_structure(p)
-      s = Structure.new(p,10,10,10)
+      s = Structure.new(p,10,20,20)
       @structures << s
       add_object(s)
     end
@@ -102,23 +135,60 @@ module LD17
         @soldiers.each {|s| s.update_target }
         @space.step(dt)
       end
+      call_drops
       disaster_check
+      score_structures
+    end
+    
+    def call_drops
+      if Time.now - @drop_timer > @rate
+        create_plane
+        @drop_timer = Time.now
+        @num_drops += 1
+        if rand(@chances) <= @num_drops
+          @num_drops = 0
+          @rate *= 0.95
+          @rate = [@rate,@min_rate].max
+        end
+      end
+    end
+    
+    def score_structures
+      @score_timer ||= Time.now
+      if Time.now - @score_timer > 5
+        num = @structures.select {|s| s.hit? && s.body.p.y < @water_level}.size
+        @score += num * 20
+        @score_timer = Time.now
+      end 
     end
     
     def disaster_check
-      if @island.disaster?
+      if @island.shape.bb.b > 660
+        MainWindow.restart
+      elsif @island.disaster?
         @island.capsize!
-        #puts "Capsize!"
+        unless @played_capsize
+          @capsize_warning.play
+          @played_capsize = true
+        end
       elsif @island.danger?
-        #puts "Danger!"
+        unless @danger || @sample
+          @danger = true
+          @sample = @tipover_warning.play
+        end
         make_soldiers_run_away
+      else
+        @danger = false
+      end
+      if @sample && !@sample.playing?
+        @sample = nil
       end
     end
     
     def make_soldiers_run_away
       danger_points = @island.danger_vertices.map {|v| @island.body.local2world(v)}
       safe_vertex = danger_points.reject {|v| v.y > @water_level}.sort_by {|v| -v.y }.first
-      safe_vertex ||= @island.local2world(@island.top_vertex)
+      safe_vertex ||= @island.body.local2world(@island.top_vertex)
       @soldiers.each do |soldier|
         target_x = safe_vertex.x + rand(10) - 5
         p = @island.surface_at(target_x)
@@ -134,12 +204,22 @@ module LD17
     
     
     def draw
+      draw_mouse
+      draw_score
       draw_background
       draw_water
       draw_island
       draw_soldiers
       draw_airplanes
       draw_structures
+    end
+    
+    def draw_mouse
+      @mouse_pointer.draw(mouse_x,mouse_y,ZOrder::Pointer)
+    end
+    
+    def draw_score
+      @font.draw("Score: #{@score}",5,5,ZOrder::Score,1,1,0xFF000000)
     end
     
     def draw_background
@@ -191,8 +271,8 @@ module LD17
     
     def pick_target_for_soldier(soldier)
       if (set = @structures.select {|s| s.hit? && s.body.p.y < @water_level}).empty?
-        p = @island.surface_at(target_x) - vec2(0,5)
-        soldier.move_towards(p)
+        p = @island.surface_at(target_x) 
+        soldier.move_towards(p - vec2(0,5)) if p
       else
         choice = set.sort_by {rand}.first
         soldier.target(choice)
